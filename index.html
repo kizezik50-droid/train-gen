@@ -1,0 +1,790 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Factorio Train Depot Generator</title>
+<style>
+@font-face {
+  font-family: 'TitilliumWeb';
+  src: url('https://cdn.jsdelivr.net/gh/wube/factorio-data/base/graphics/font/titilliumweb-semibold.woff') format('woff'),
+       url('https://raw.githubusercontent.com/google/fonts/main/ofl/titilliumweb/TitilliumWeb-SemiBold.ttf') format('truetype');
+  font-weight: 600;
+  font-style: normal;
+}
+:root{--bg:#121214;--card:rgba(26, 26, 30, 0.88);--border:#2a2a30;--border-focus:#f59e0b;--text:#e4e4e7;--muted:#71717a;--accent:#f59e0b;--accent-hover:#d97706;--ok:#10b981;--err:#ef4444;--radius:10px}
+body{
+  font-family:'TitilliumWeb',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  max-width:850px;
+  margin:40px auto;
+  padding:0 20px;
+  background-color: var(--bg);
+  background-image: linear-gradient(rgba(18, 18, 20, 0.65), rgba(18, 18, 20, 0.65)), url('https://cdn.factorio.com/assets/img/artwork/0.17-stable.png');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  color:var(--text);
+  line-height:1.5;
+}
+.box{background:var(--card);backdrop-filter: blur(6px);border:1px solid var(--border);border-radius:var(--radius);padding:28px;box-shadow:0 10px 25px -5px rgba(0,0,0,0.5)}
+.logo-container{text-align:center;margin-bottom:16px}
+.logo-container img{max-width:260px;height:auto;display:inline-block}
+h1{font-family:'TitilliumWeb',sans-serif;font-size:26.4px;color:#a5a9ac;margin:0 0 24px 0;letter-spacing:-0.025em;text-align:center}
+label{display:block;font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px}
+button,textarea,input,select{width:100%;box-sizing:border-box;font-family:inherit;font-size:14px;border-radius:var(--radius);border:1px solid var(--border);background:#111113;color:var(--text);transition:all .2s ease}
+select{padding:12px 14px;cursor:pointer}
+button{cursor:pointer;background:#27272a;font-weight:600;padding:12px 16px;border-color:transparent}
+button:hover{background:#3f3f46}
+button#generate{background:var(--accent);color:#000}
+button#generate:hover{background:var(--accent-hover)}
+.row{display:flex;gap:12px;margin-top:16px}
+.row>*{flex:1;margin-top:0}
+.small{font-size:12px;color:var(--muted);margin-top:16px;line-height:1.6}
+.ok{color:var(--ok)!important}
+.err{color:var(--err)!important}
+textarea{height:140px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:12px;word-break:break-all;padding:12px;resize:vertical}
+textarea:focus,input:focus,select:focus{outline:none;border-color:var(--border-focus)}
+.status{margin-top:14px;font-size:13px;font-weight:500}
+.item-icon-img{width:24px;height:24px;object-fit:contain;flex-shrink:0}
+#selected-item-display{padding:10px 14px;background:#111113;border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;display:flex;align-items:center;gap:12px;transition:border-color .2s}
+#selected-item-display:hover{border-color:#52525b}
+#dropdown-list{display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;max-height:300px;overflow-y:auto;background:#18181b;border:1px solid var(--border);border-radius:var(--radius);z-index:1000;box-shadow:0 10px 25px -5px rgba(0,0,0,0.5)}
+#item-filter{width:calc(100% - 16px);margin:8px;padding:10px;background:#111113;border:1px solid var(--border);color:var(--text);border-radius:6px}
+#dropdown-options div{display:flex;align-items:center;gap:12px;padding:8px 14px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.03)}
+#dropdown-options div:hover{background:#27272a}
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="logo-container">
+    <img src="https://cdn.factorio.com/assets/img/web/space-age-logo.png" alt="Space Age Logo">
+  </div>
+  <h1>Генератор станций депо для предметов</h1>
+  
+  <label>Выбор предмета</label>
+  <div style="position:relative;">
+    <div id="selected-item-display">
+      <span id="selected-icon"></span>
+      <span id="selected-text">Загрузка списка…</span>
+    </div>
+    <div id="dropdown-list">
+      <input type="text" id="item-filter" placeholder="Поиск по названию или ID...">
+      <div id="dropdown-options"></div>
+    </div>
+  </div>
+  <input type="hidden" id="item" value="">
+
+  <div class="row" style="margin-top:16px;">
+    <div>
+      <label>Количество вагонов</label>
+      <select id="wagon-count">
+        <option value="1">1 вагон</option>
+        <option value="2">2 вагона</option>
+        <option value="3">3 вагона</option>
+        <option value="4">4 вагона</option>
+        <option value="5">5 вагонов</option>
+        <option value="6">6 вагонов</option>
+        <option value="7">7 вагонов</option>
+        <option value="8" selected>8 вагонов</option>
+      </select>
+    </div>
+    <div>
+      <label>Качество вагонов</label>
+      <select id="wagon-quality">
+        <option value="normal">Обычное (40 ячеек)</option>
+        <option value="legendary" selected>Легендарное (100 ячеек)</option>
+      </select>
+    </div>
+    <div>
+      <label>Качество локомотива</label>
+      <select id="loco-quality">
+        <option value="normal">Обычное</option>
+        <option value="legendary" selected>Легендарное</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="row" style="margin-top:16px;">
+    <button id="generate">Создать Blueprint</button>
+  </div>
+  
+  <div class="row">
+    <button id="copy">Скопировать строку</button>
+  </div>
+
+  <div id="status" class="status"></div>
+  
+  <label style="margin-top:20px">Информация о схеме</label>
+  <textarea readonly style="height:60px;" id="info-text">Структура: <id>_prv / <id>_req / <id>_depot. Длина пути: 64 клетки.</textarea>
+
+  <label style="margin-top:20px">Blueprint string</label>
+  <textarea id="out" readonly></textarea>
+</div>
+
+<script>
+const SOURCES = {
+ baseItem: ['https://raw.githubusercontent.com/wube/factorio-data/master/base/prototypes/item.lua'],
+ saItem: ['https://raw.githubusercontent.com/wube/factorio-data/master/space-age/prototypes/item.lua'],
+ baseGroups: ['https://raw.githubusercontent.com/wube/factorio-data/master/base/prototypes/item-groups.lua'],
+ baseSubgroups: ['https://raw.githubusercontent.com/wube/factorio-data/master/base/prototypes/item-subgroups.lua'],
+ saGroups: ['https://raw.githubusercontent.com/wube/factorio-data/master/space-age/prototypes/item-groups.lua'],
+ saSubgroups: ['https://raw.githubusercontent.com/wube/factorio-data/master/space-age/prototypes/item-subgroups.lua']
+};
+
+const EXPLICIT_MAP = {
+  'small-lamp': 'Lamp.png',
+  'shotgun-shell': 'Shotgun_shells.png',
+  'piercing-shotgun-shell': 'Piercing_shotgun_shells.png',
+  'capture-robot-rocket': 'Capture_bot_rocket.png',
+  'night-vision-equipment': 'Nightvision.png',
+  'fission-reactor-equipment': 'Portable_fission_reactor.png',
+  'fusion-reactor-equipment': 'Portable_fusion_reactor.png',
+  'battery-equipment': 'Personal_battery.png',
+  'battery-mk2-equipment': 'Personal_battery_MK2.png',
+  'battery-mk3-equipment': 'Personal_battery_MK3.png',
+  'solar-panel-equipment': 'Portable_solar_panel.png',
+  'teslagun': 'Tesla_gun.png',
+  'tesla-gun': 'Tesla_gun.png',
+  'uranium-235': 'Uranium-235.png',
+  'uranium-238': 'Uranium-238.png',
+  'energy-shield-equipment': 'Energy_shield.png',
+  'energy-shield-mk2-equipment': 'Energy_shield_MK2.png',
+  'personal-laser-defense-equipment': 'Personal_laser_defense.png',
+  'discharge-defense-equipment': 'Discharge_defense.png'
+};
+
+const RU_DICT = {
+  'wooden-chest': 'Деревянный сундук',
+  'iron-chest': 'Железный сундук',
+  'steel-chest': 'Стальной сундук',
+  'storage-tank': 'Резервуар',
+  'transport-belt': 'Конвейер',
+  'fast-transport-belt': 'Скоростной конвейер',
+  'express-transport-belt': 'Сверхскоростной конвейер',
+  'turbo-transport-belt': 'Турбо-конвейер',
+  'underground-belt': 'Подземный конвейер',
+  'fast-underground-belt': 'Скоростной подземный конвейер',
+  'express-underground-belt': 'Сверхскоростной подземный конвейер',
+  'turbo-underground-belt': 'Турбо-подземный конвейер',
+  'splitter': 'Разделитель',
+  'fast-splitter': 'Скоростной разделитель',
+  'express-splitter': 'Сверхскоростной разделитель',
+  'turbo-splitter': 'Турбо-разделитель',
+  'burner-inserter': 'Твёрдотопливный манипулятор',
+  'inserter': 'Манипулятор',
+  'long-handed-inserter': 'Длиннорукий манипулятор',
+  'fast-inserter': 'Быстрый манипулятор',
+  'filter-inserter': 'Фильтрующий манипулятор',
+  'stack-inserter': 'Пакетный манипулятор',
+  'stack-filter-inserter': 'Фильтрующий пакетный манипулятор',
+  'bulk-inserter': 'Пакетный манипулятор',
+  'small-electric-pole': 'Малая ЛЭП',
+  'medium-electric-pole': 'Средняя ЛЭП',
+  'big-electric-pole': 'Большая ЛЭП',
+  'substation': 'Подстанция',
+  'pipe': 'Труба',
+  'pipe-to-ground': 'Подземная труба',
+  'pump': 'Помпа',
+  'rail': 'Рельсы',
+  'straight-rail': 'Прямые рельсы',
+  'curved-rail': 'Изогнутые рельсы',
+  'train-stop': 'Железнодорожная станция',
+  'rail-signal': 'Железнодорожный светофор',
+  'rail-chain-signal': 'Проходной светофор',
+  'locomotive': 'Локомотив',
+  'cargo-wagon': 'Грузовой вагон',
+  'fluid-wagon': 'Вагон-цистерна',
+  'artillery-wagon': 'Артиллерийский вагон',
+  'car': 'Автомобиль',
+  'tank': 'Танк',
+  'spidertron': 'Паукоход',
+  'logistic-robot': 'Логистический робот',
+  'construction-robot': 'Строительный робот',
+  'active-provider-chest': 'Сундук активного снабжения',
+  'passive-provider-chest': 'Сундук пассивного снабжения',
+  'storage-chest': 'Сундук хранения',
+  'buffer-chest': 'Буферный сундук',
+  'requester-chest': 'Сундук запроса',
+  'roboport': 'Дронопорт',
+  'small-lamp': 'Осветительная мачта',
+  'red-wire': 'Красный провод',
+  'green-wire': 'Зелёный провод',
+  'arithmetic-combinator': 'Арифмометр',
+  'decider-combinator': 'Сравнивающий комбинатор',
+  'constant-combinator': 'Комбинатор постоянного сигнала',
+  'selector-combinator': 'Селекторный комбинатор',
+  'programmable-speaker': 'Программируемый динамик',
+  'display-panel': 'Дисплейная панель',
+  'stone-furnace': 'Каменная печь',
+  'steel-furnace': 'Стальная печь',
+  'electric-furnace': 'Электрическая печь',
+  'burner-mining-drill': 'Твёрдотопливный бур',
+  'electric-mining-drill': 'Электрический бур',
+  'big-mining-drill': 'Большой бур',
+  'offshore-pump': 'Водяная помпа',
+  'pumpjack': 'Нефтяная вышка',
+  'assembling-machine-1': 'Сборочный автомат 1',
+  'assembling-machine-2': 'Сборочный автомат 2',
+  'assembling-machine-3': 'Сборочный автомат 3',
+  'oil-refinery': 'Нефтеперерабатывающий завод',
+  'chemical-plant': 'Химический завод',
+  'centrifuge': 'Центрифуга',
+  'lab': 'Лаборатория',
+  'beacon': 'Маяк',
+  'boiler': 'Паровой котёл',
+  'steam-engine': 'Паровой двигатель',
+  'steam-turbine': 'Паровая турбина',
+  'solar-panel': 'Солнечная панель',
+  'accumulator': 'Аккумулятор',
+  'nuclear-reactor': 'Ядерный реактор',
+  'heat-pipe': 'Тепловая труба',
+  'heat-exchanger': 'Теплообменник',
+  'landfill': 'Отсыпка грунта',
+  'cliff-explosives': 'Взрывчатка для скал',
+  'power-switch': 'Переключатель питания',
+  'radar': 'Радар',
+  'agricultural-tower': 'Сельскохозяйственная башня',
+  'lightning-rod': 'Громоотвод',
+  'lightning-collector': 'Молниеприёмник',
+  'gate': 'Ворота',
+  'electromagnetic-plant': 'Электромагнитный завод',
+  'foundry': 'Литейный завод',
+  'biochamber': 'Биокамера',
+  'cryogenic-plant': 'Криогенный завод',
+  'heating-tower': 'Тепловая башня',
+  'space-platform-starter-pack': 'Стартовый набор космической платформы',
+  'space-platform-hub': 'Ядро космической платформы',
+  'cargo-bay': 'Грузовой отсек',
+  'asteroid-collector': 'Сборщик астероидов',
+  'crusher': 'Дробилка',
+  'thruster': 'Ракетный двигатель',
+  'quantum-processor': 'Квантовый процессор',
+  'fusion-reactor': 'Термоядерный реактор',
+  'fusion-generator': 'Термоядерный генератор',
+  'biolab': 'Биолаборатория',
+  'capture-robot-rocket': 'Ракета с захватным роботом',
+  'metallic-asteroid-chunk': 'Осколок металлического астероида',
+  'carbonic-asteroid-chunk': 'Осколок углеродного астероида',
+  'oxide-asteroid-chunk': 'Осколок оксидного астероида',
+  'promethium-asteroid-chunk': 'Осколок прометиевого астероида',
+  'spoilage': 'Порча',
+  'fresh-nutrients': 'Свежие питательные вещества',
+  'nutrients': 'Питательные вещества',
+  'bioflux': 'Биофлюс',
+  'biter-egg': 'Яйцо кусаки',
+  'pentapod-egg': 'Яйцо пентапода',
+  'captive-biter-spawner': 'Пленённый улей кусак',
+  'cargo-landing-pad': 'Посадочная площадка',
+  'landing-pad-unloading-bay': 'Секция разгрузки посадочной площадки',
+  'iron-ore': 'Железная руда',
+  'copper-ore': 'Медная руда',
+  'stone': 'Камень',
+  'coal': 'Уголь',
+  'uranium-ore': 'Урановая руда',
+  'raw-fish': 'Сырая рыба',
+  'iron-ingot': 'Железный слиток',
+  'copper-ingot': 'Медный слиток',
+  'iron-plate': 'Железная пластина',
+  'copper-plate': 'Медная пластина',
+  'steel-plate': 'Стальная пластина',
+  'stone-brick': 'Каменный кирпич',
+  'iron-beam': 'Железная балка',
+  'iron-gear-wheel': 'Железная шестерня',
+  'iron-stick': 'Железный пруток',
+  'copper-cable': 'Медный кабель',
+  'copper-wire': 'Медный кабель',
+  'wood': 'Древесина',
+  'electronic-circuit': 'Электронная схема',
+  'advanced-circuit': 'Улучшенная схема',
+  'processing-unit': 'Процессор',
+  'engine-unit': 'Двигатель',
+  'electric-engine-unit': 'Электродвигатель',
+  'flying-robot-frame': 'Каркас дрона',
+  'satellite': 'Спутник',
+  'rocket-part': 'Деталь ракеты',
+  'rocket-silo': 'Ракетная шахта',
+  'rocket-fuel': 'Ракетное топливо',
+  'nuclear-fuel': 'Ядерное топливо',
+  'solid-fuel': 'Твёрдое топливо',
+  'uranium-235': 'Уран-235',
+  'uranium-238': 'Уран-238',
+  'uranium-fuel-cell': 'Урановый стержень',
+  'used-up-uranium-fuel-cell': 'Отработанный урановый стержень',
+  'depleted-uranium-fuel-cell': 'Отработанный урановый стержень',
+  'fusion-power-cell': 'Термоядерный стержень',
+  'plastic-bar': 'Пластмасса',
+  'sulfur': 'Сера',
+  'battery': 'Аккумуляторная батарея',
+  'explosives': 'Взрывчатка',
+  'barrel': 'Бочка',
+  'calcite': 'Кальцит',
+  'yumako-mash': 'Пюре из юмако',
+  'jelly': 'Желе',
+  'jellynut': 'Студнеорех',
+  'jellynut-seed': 'Семя студнеореха',
+  'carbon-fiber': 'Углеродное волокно',
+  'scrap': 'Лом',
+  'iron-bacteria': 'Железные бактерии',
+  'copper-bacteria': 'Медные бактерии',
+  'carbon': 'Углерод',
+  'holmium-ore': 'Гольмиевая руда',
+  'holmium-plate': 'Гольмиевая пластина',
+  'superconductor': 'Сверхпроводник',
+  'supercapacitor': 'Суперконденсатор',
+  'lithium': 'Литий',
+  'lithium-plate': 'Литиевая пластина',
+  'tungsten-ore': 'Вольфрамовая руда',
+  'tungsten-carbide': 'Карбид вольфрама',
+  'tungsten-plate': 'Вольфрамовая пластина',
+  'low-density-structure': 'Малоплотная структура',
+  'ice': 'Лёд',
+  'concrete': 'Бетон',
+  'hazard-concrete': 'Размеченный бетон',
+  'refined-concrete': 'Железобетон',
+  'refined-hazard-concrete': 'Размеченный железобетон',
+  'space-platform-foundation': 'Фундамент космической платформы',
+  'overgrowth-yumako-soil': 'Заросшая почва юмако',
+  'artificial-jellynut-soil': 'Искусственная почва студнеореха',
+  'overgrowth-jellynut-soil': 'Заросшая почва студнеореха',
+  'ice-platform': 'Ледяная платформа',
+  'foundation': 'Фундамент',
+  'repair-pack': 'Ремонтный комплект',
+  'belt-immunity-equipment': 'Генератор иммунитета к конвейерам',
+  'toolbelt-equipment': 'Пояс для инструментов',
+  'discharge-defense-remote': 'Пульт разрядного щита',
+  'artillery-targeting-remote': 'Пульт артиллерийского наведения',
+  'speed-module': 'Модуль скорости',
+  'speed-module-2': 'Модуль скорости 2',
+  'speed-module-3': 'Модуль скорости 3',
+  'efficiency-module': 'Энергосберегающий модуль',
+  'efficiency-module-2': 'Энергосберегающий модуль 2',
+  'efficiency-module-3': 'Энергосберегающий модуль 3',
+  'productivity-module': 'Продуктивный модуль',
+  'productivity-module-2': 'Продуктивный модуль 2',
+  'productivity-module-3': 'Продуктивный модуль 3',
+  'quality-module': 'Модуль качества',
+  'quality-module-2': 'Модуль качества 2',
+  'quality-module-3': 'Модуль качества 3',
+  'night-vision-equipment': 'Прибор ночного видения',
+  'energy-shield-equipment': 'Энергетический щит',
+  'energy-shield-mk2-equipment': 'Энергетический щит MK2',
+  'battery-equipment': 'Персональный аккумулятор',
+  'battery-mk2-equipment': 'Персональный аккумулятор MK2',
+  'battery-mk3-equipment': 'Персональный аккумулятор MK3',
+  'solar-panel-equipment': 'Портативная солнечная батарея',
+  'fission-reactor-equipment': 'Портативный ядерный реактор',
+  'fusion-reactor-equipment': 'Портативный термоядерный реактор',
+  'personal-laser-defense-equipment': 'Персональная лазерная защита',
+  'discharge-defense-equipment': 'Разрядный щит',
+  'exoskeleton-equipment': 'Экзоскелет',
+  'personal-roboport-equipment': 'Персональный дронопорт',
+  'personal-roboport-mk2-equipment': 'Персональный дронопорт MK2',
+  'pistol': 'Пистолет',
+  'submachine-gun': 'Пистолет-пулемёт',
+  'shotgun': 'Дробовик',
+  'combat-shotgun': 'Боевой дробовик',
+  'rocket-launcher': 'Ракетница',
+  'flamethrower': 'Огнемёт',
+  'railgun': 'Рельсотрон',
+  'gun-turret': 'Турель',
+  'laser-turret': 'Лазерная турель',
+  'flamethrower-turret': 'Огнемётная турель',
+  'artillery-turret': 'Артиллерийская турель',
+  'rocket-turret': 'Ракетная турель',
+  'tesla-turret': 'Тесла-турель',
+  'railgun-turret': 'Турель-рельсотрон',
+  'land-mine': 'Мина',
+  'firearm-magazine': 'Магазин с патронами',
+  'piercing-rounds-magazine': 'Магазин с бронебойными патронами',
+  'uranium-rounds-magazine': 'Магазин с урановыми патронами',
+  'shotgun-shell': 'Патроны для дробовика',
+  'piercing-shotgun-shell': 'Бронебойные патроны для дробовика',
+  'cannon-shell': 'Пушечный снаряд',
+  'explosive-cannon-shell': 'Разрывной пушечный снаряд',
+  'uranium-cannon-shell': 'Урановый пушечный снаряд',
+  'explosive-uranium-cannon-shell': 'Разрывной урановый пушечный снаряд',
+  'artillery-shell': 'Артиллерийский снаряд',
+  'rocket': 'Ракета',
+  'explosive-rocket': 'Разрывная ракета',
+  'railgun-ammo': 'Снаряды для рельсотрона',
+  'atomic-bomb': 'Атомная бомба',
+  'flamethrower-ammo': 'Топливо для огнемёта',
+  'grenade': 'Граната',
+  'cluster-grenade': 'Кассетная граната',
+  'poison-capsule': 'Капсула с отравляющим газом',
+  'slowdown-capsule': 'Замедляющая капсула',
+  'defender-capsule': 'Капсула с защитными дронами',
+  'distractor-capsule': 'Капсула с отвлекающими дронами',
+  'destroyer-capsule': 'Капсула с уничтожающими дронами',
+  'light-armor': 'Лёгкая броня',
+  'heavy-armor': 'Тяжёлая броня',
+  'modular-armor': 'Модульная броня',
+  'power-armor': 'Броня MK1',
+  'power-armor-mk2': 'Броня MK2',
+  'mech-armor': 'Силовая броня',
+  'teslagun': 'Тесла-пушка',
+  'tesla-gun': 'Тесла-пушка',
+  'tesla-ammo': 'Патроны для тесла-пушки',
+  'automation-science-pack': 'Автоматизационный исследовательский пакет',
+  'logistic-science-pack': 'Логистический исследовательский пакет',
+  'military-science-pack': 'Военный исследовательский пакет',
+  'chemical-science-pack': 'Химический исследовательский пакет',
+  'production-science-pack': 'Производственный исследовательский пакет',
+  'utility-science-pack': 'Вспомогательный исследовательский пакет',
+  'space-science-pack': 'Космический исследовательский пакет',
+  'metallurgic-science-pack': 'Металлургический исследовательский пакет',
+  'agricultural-science-pack': 'Сельскохозяйственный исследовательский пакет',
+  'electromagnetic-science-pack': 'Электромагнитный исследовательский пакет',
+  'cryogenic-science-pack': 'Криогенный исследовательский пакет',
+  'promethium-science-pack': 'Прометиевый исследовательский пакет'
+};
+
+let items = [];
+
+async function fetchWithTimeout(url, ms = 3500) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), ms);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(id);
+    if (res.ok) return await res.text();
+  } catch (e) {
+    clearTimeout(id);
+  }
+  return null;
+}
+
+async function fetchWithFallback(urls) {
+  for (const u of urls) {
+    let text = await fetchWithTimeout(u, 3000);
+    if (text) return text;
+    const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u);
+    text = await fetchWithTimeout(proxyUrl, 3000);
+    if (text) return text;
+  }
+  return '';
+}
+
+function getCandidateFileNames(id) {
+  const list = [];
+  if (EXPLICIT_MAP[id]) list.push(EXPLICIT_MAP[id]);
+  let cleanId = id.replace(/-(equipment|module|capsule|magazine)$/i, '');
+  function formatName(str) {
+    let s = str.replace(/-/g, '_').replace(/_mk(\d+)/ig, '_MK$1');
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+  list.push(formatName(cleanId) + '.png');
+  list.push(formatName(id) + '.png');
+  if (cleanId.endsWith('shell')) list.push(formatName(cleanId) + 's.png');
+  const titleCase = id.split('-').map(w => w.length <= 3 ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1)).join('_');
+  list.push(titleCase + '.png');
+  return [...new Set(list)];
+}
+
+function bindImageWithFallback(imgEl, id) {
+  const candidates = getCandidateFileNames(id);
+  let index = 0;
+  function tryNext() {
+    if (index >= candidates.length) {
+      imgEl.style.display = 'none';
+      return;
+    }
+    const fileName = candidates[index++];
+    imgEl.src = `https://wiki.factorio.com/Special:FilePath/${fileName}`;
+  }
+  imgEl.onerror = tryNext;
+  tryNext();
+}
+
+function parseItems(src, source) {
+  const out = [];
+  if (!src) return out;
+  const re = /\{\s*type\s*=\s*"([^"]+)"\s*,\s*name\s*=\s*"([^"]+)"([\s\S]*?)(?=\n\s*\},\s*\n\s*\{\s*type\s*=|\n\s*}\s*\n\s*}\s*\n\s*}\s*$)/g;
+  let m;
+  while ((m = re.exec(src))) {
+    const type = m[1], name = m[2], b = m[3];
+    if (name.startsWith('parameter')) continue;
+    if (!['item','tool','ammo','capsule','gun','module','armor','repair-tool','item-with-entity-data','item-with-inventory','item-with-label','item-with-tags','rail-planner','space-platform-starter-pack'].includes(type)) continue;
+    if (/hidden\s*=\s*true/.test(b)) continue;
+    const sg = (b.match(/subgroup\s*=\s*"([^"]+)"/)||[])[1]||'';
+    const order = (b.match(/order\s*=\s*"([^"]+)"/)||[])[1]||'';
+    out.push({id: name, subgroup: sg, order, source});
+  }
+  return out;
+}
+
+function parseProtoOrder(src, type) {
+  const m = {};
+  if (!src) return m;
+  const re = new RegExp('\\{\\s*type\\s*=\\s*\"' + type + '\"\\s*,\\s*name\\s*=\\s*\"([^\"]+)\"([\\s\\S]*?)\\n\\s*\\},', 'g');
+  let x;
+  while ((x = re.exec(src))) {
+    const b = x[2];
+    m[x[1]] = {
+      group: (b.match(/group\s*=\s*\"([^\"]+)\"/)||[])[1]||'',
+      order: (b.match(/order\s*=\s*\"([^\"]+)\"/)||[])[1]||''
+    };
+  }
+  return m;
+}
+
+function renderDropdown(filterText = '') {
+  const container = document.getElementById('dropdown-options');
+  container.innerHTML = '';
+  const filter = filterText.toLowerCase().trim();
+  const filtered = items.filter(x => x.label.toLowerCase().includes(filter) || x.id.toLowerCase().includes(filter));
+
+  for (const x of filtered) {
+    const div = document.createElement('div');
+    
+    const img = document.createElement('img');
+    img.className = 'item-icon-img';
+    img.loading = 'lazy';
+    bindImageWithFallback(img, x.id);
+    
+    const textSpan = document.createElement('span');
+    textSpan.textContent = x.label;
+
+    div.appendChild(img);
+    div.appendChild(textSpan);
+    
+    div.onclick = () => {
+      document.getElementById('item').value = x.id;
+      const selIcon = document.getElementById('selected-icon');
+      selIcon.innerHTML = '';
+      const cloneImg = img.cloneNode(true);
+      bindImageWithFallback(cloneImg, x.id);
+      selIcon.appendChild(cloneImg);
+
+      document.getElementById('selected-text').textContent = x.label;
+      document.getElementById('dropdown-list').style.display = 'none';
+    };
+    container.appendChild(div);
+  }
+}
+
+async function load() {
+  const st = document.getElementById('status');
+  st.className = 'status';
+  st.textContent = 'Загружаю актуальные данные Wube...';
+
+  try {
+    const keys = Object.keys(SOURCES);
+    const fetchPromises = keys.map(k => fetchWithFallback(SOURCES[k]));
+    const results = await Promise.all(fetchPromises);
+    const data = {};
+    keys.forEach((k, i) => data[k] = results[i]);
+
+    const groups = {...parseProtoOrder(data.baseGroups, 'item-group'), ...parseProtoOrder(data.saGroups, 'item-group')};
+    const subgroups = {...parseProtoOrder(data.baseSubgroups, 'item-subgroup'), ...parseProtoOrder(data.saSubgroups, 'item-subgroup')};
+
+    const a = [...parseItems(data.baseItem, 'base'), ...parseItems(data.saItem, 'space-age')];
+    const seen = new Set();
+    
+    items = a.filter(x => !seen.has(x.id) && seen.add(x.id)).map(x => {
+      const sg = subgroups[x.subgroup] || {};
+      const g = groups[sg.group] || {};
+      let ruName = RU_DICT[x.id];
+      if (!ruName) {
+        let clean = x.id.replace(/-/g, ' ');
+        ruName = clean.charAt(0).toUpperCase() + clean.slice(1);
+      }
+      return {
+        ...x,
+        label: ruName,
+        groupOrder: g.order || '',
+        subgroupOrder: sg.order || ''
+      };
+    });
+
+    items.sort((a, b) => 
+      (a.groupOrder||'').localeCompare(b.groupOrder||'') || 
+      (a.subgroupOrder||'').localeCompare(b.subgroupOrder||'') || 
+      (a.order||'').localeCompare(b.order||'') || 
+      a.label.localeCompare(b.label, 'ru')
+    );
+
+    if (items.length > 0) {
+      const first = items[0];
+      document.getElementById('item').value = first.id;
+      const selIcon = document.getElementById('selected-icon');
+      selIcon.innerHTML = '';
+      const firstImg = document.createElement('img');
+      firstImg.className = 'item-icon-img';
+      bindImageWithFallback(firstImg, first.id);
+      selIcon.appendChild(firstImg);
+
+      document.getElementById('selected-text').textContent = first.label;
+      renderDropdown();
+    }
+
+    st.className = 'status ok';
+    st.textContent = 'Загружено предметов: ' + items.length;
+  } catch(e) {
+    st.className = 'status err';
+    st.textContent = 'Ошибка загрузки: ' + e.message;
+  }
+}
+
+const display = document.getElementById('selected-item-display');
+const list = document.getElementById('dropdown-list');
+const searchInput = document.getElementById('item-filter');
+
+display.onclick = (e) => {
+  e.stopPropagation();
+  const isVisible = list.style.display === 'block';
+  list.style.display = isVisible ? 'none' : 'block';
+  if (!isVisible) {
+    searchInput.value = '';
+    renderDropdown();
+    searchInput.focus();
+  }
+};
+
+searchInput.oninput = (e) => renderDropdown(e.target.value);
+searchInput.onclick = (e) => e.stopPropagation();
+document.addEventListener('click', () => list.style.display = 'none');
+
+function deflateStore(data) {
+  const raw = new TextEncoder().encode(data);
+  let chunks = [], pos = 0;
+  while (pos < raw.length) {
+    let n = Math.min(65535, raw.length - pos), last = (pos + n >= raw.length);
+    let b = new Uint8Array(5 + n);
+    b[0] = last ? 1 : 0;
+    b[1] = n & 255; b[2] = n >> 8; b[3] = (~n) & 255; b[4] = (~n) >> 8;
+    b.set(raw.slice(pos, pos + n), 5);
+    chunks.push(b);
+    pos += n;
+  }
+  const total = chunks.reduce((s, x) => s + x.length, 0) + 6;
+  let out = new Uint8Array(total), p = 0;
+  out[p++] = 0x78; out[p++] = 0x01;
+  for (const c of chunks) { out.set(c, p); p += c.length; }
+  let a = 1, b = 0;
+  for (const v of raw) { a = (a + v) % 65521; b = (b + a) % 65521; }
+  const ad = (b << 16) | a;
+  out[p++] = (ad >>> 24) & 255; out[p++] = (ad >>> 16) & 255; out[p++] = (ad >>> 8) & 255; out[p++] = ad & 255;
+  let bin = '';
+  for (let i = 0; i < out.length; i += 0x8000) bin += String.fromCharCode(...out.subarray(i, i + 0x8000));
+  return '0' + btoa(bin);
+}
+
+function makeBlueprint(id) {
+  const station = id + '_depot', prv = id + '_prv', req = id + '_req';
+  const wagonCount = parseInt(document.getElementById('wagon-count').value, 10);
+  const wagonQuality = document.getElementById('wagon-quality').value;
+  const locoQuality = document.getElementById('loco-quality').value;
+  
+  const slotCount = wagonQuality === 'legendary' ? 100 : 40;
+
+  const e = []; 
+  let n = 1;
+
+  for (let x = -62; x <= 0; x += 2) {
+    e.push({entity_number: n++, name: 'straight-rail', position: {x, y: 0}, direction: 4});
+  }
+
+  e.push({entity_number: n++, name: 'train-stop', position: {x: 0, y: 2}, direction: 4, station: station});
+
+  const locoObj = {
+    entity_number: n++, 
+    name: 'locomotive', 
+    position: {x: -2, y: 1}, 
+    direction: 4
+  };
+  if (locoQuality === 'legendary') locoObj.quality = 'legendary';
+  const locoNo = locoObj.entity_number;
+  e.push(locoObj);
+
+  for (let i = 1; i <= wagonCount; i++) {
+    const f = [];
+    for (let j = 1; j <= slotCount; j++) f.push({index: j, name: id});
+    const wagonObj = {
+      entity_number: n++, 
+      name: 'cargo-wagon', 
+      position: {x: -2 - 7 * i, y: 1}, 
+      direction: 4, 
+      inventory: {filters: f}
+    };
+    if (wagonQuality === 'legendary') wagonObj.quality = 'legendary';
+    e.push(wagonObj);
+  }
+
+  const schedule = {
+    schedule: {
+      records: [
+        {station: prv, wait_conditions: [{type: 'full', compare_type: 'and'}]},
+        {station: req, wait_conditions: [{type: 'empty', compare_type: 'and'}]}
+      ],
+      interrupts: [{
+        name: station,
+        conditions: [{type: 'destination_full_or_no_path', compare_type: 'and'}],
+        targets: [{station: station, wait_conditions: []}],
+        inside_interrupt: false
+      }]
+    },
+    locomotives: [locoNo]
+  };
+
+  document.getElementById('info-text').value = `Структура: ${station} / ${prv} / ${req}. Вагонов: ${wagonCount} (${wagonQuality}, ячеек: ${slotCount}). Локомотив: ${locoQuality}. Длина пути: 64 клетки.`;
+
+  return {
+    blueprint: {
+      item: 'blueprint',
+      label: station,
+      entities: e,
+      icons: [{signal: {type: 'item', name: id}, index: 1}],
+      schedules: [schedule],
+      version: 562954249502720
+    }
+  };
+}
+
+document.getElementById('generate').onclick = () => {
+  const id = document.getElementById('item').value;
+  if (!id) return;
+  try {
+    document.getElementById('out').value = deflateStore(JSON.stringify(makeBlueprint(id)));
+    document.getElementById('status').textContent = 'Blueprint успешно создан!';
+    document.getElementById('status').className = 'status ok';
+  } catch (e) {
+    document.getElementById('status').textContent = 'Ошибка: ' + e.message;
+    document.getElementById('status').className = 'status err';
+  }
+};
+
+document.getElementById('copy').onclick = async () => {
+  const o = document.getElementById('out');
+  if (!o.value) document.getElementById('generate').click();
+  if (o.value) {
+    o.focus();
+    o.select();
+    o.setSelectionRange(0, 999999);
+    
+    let copied = false;
+    try {
+      copied = document.execCommand('copy');
+    } catch (e) {}
+
+    if (!copied && navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(o.value);
+        copied = true;
+      } catch (e) {}
+    }
+
+    if (copied) {
+      document.getElementById('status').textContent = 'Скопировано в буфер обмена.';
+      document.getElementById('status').className = 'status ok';
+    } else {
+      document.getElementById('status').textContent = 'Не удалось скопировать автоматически.';
+      document.getElementById('status').className = 'status err';
+    }
+  }
+};
+
+load();
+</script>
+</body>
+</html>
